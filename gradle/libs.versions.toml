@@ -9,6 +9,10 @@ shizuku = "13.1.5"
 hiddenapi = "4.4.0"
 hiddenapi-rikka = "4.3.1"
 joor = "0.9.14"
+lifecycle-livedata-ktx = "2.6.2"
+lifecycle-viewmodel-ktx = "2.6.2"
+navigation-fragment-ktx = "2.5.3"
+navigation-ui-ktx = "2.5.3"
 
 [libraries]
 androidx-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-ktx" }
@@ -22,6 +26,10 @@ hiddenapi-processor = { module = "dev.rikka.tools.refine:annotation-processor", 
 hiddenapi-rikka-stub = { module = "dev.rikka.hidden:stub", version.ref = "hiddenapi-rikka" }
 hiddenapi-rikka-compat = { module = "dev.rikka.hidden:compat", version.ref = "hiddenapi-rikka" }
 reflect-joor = { module = "org.jooq:joor", version.ref = "joor" }
+lifecycle-livedata-ktx = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx", version.ref = "lifecycle-livedata-ktx" }
+lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle-viewmodel-ktx" }
+navigation-fragment-ktx = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navigation-fragment-ktx" }
+navigation-ui-ktx = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navigation-ui-ktx" }
 
 [plugins]
 com-android-application = { id = "com.android.application", version.ref = "agp" }

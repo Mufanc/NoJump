@@ -43,6 +43,8 @@ android {
     buildFeatures {
         buildConfig = true
         aidl = true
+        viewBinding = true
+        dataBinding = true
     }
 }
 
@@ -50,6 +52,10 @@ dependencies {
     // shizuku
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    implementation(libs.lifecycle.livedata.ktx)
+    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.navigation.fragment.ktx)
+    implementation(libs.navigation.ui.ktx)
 
     // hidden api
 //    compileOnly(project(":api-stub"))

@@ -43,15 +43,18 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        val version = Shizuku.peekUserService(args, connection)
-        if (version == -1) {
-            Log.d(TAG, "service is not running, just start it")
-            Shizuku.bindUserService(args, connection)
-        } else if (BuildConfig.VERSION_CODE > version || BuildConfig.DEBUG) {
-            Log.d(TAG, "restart the service")
-            Shizuku.unbindUserService(args, null, true)
-            Handler(Looper.myLooper()!!).postDelayed(1000) {
+        if (Shizuku.pingBinder()) {
+            val version = Shizuku.peekUserService(args, connection)
+
+            if (version == -1) {
+                Log.d(TAG, "service is not running, just start it")
                 Shizuku.bindUserService(args, connection)
+            } else if (BuildConfig.VERSION_CODE > version || BuildConfig.DEBUG) {
+                Log.d(TAG, "restart the service")
+                Shizuku.unbindUserService(args, null, true)
+                Handler(Looper.myLooper()!!).postDelayed(1000) {
+                    Shizuku.bindUserService(args, connection)
+                }
             }
         }
     }
