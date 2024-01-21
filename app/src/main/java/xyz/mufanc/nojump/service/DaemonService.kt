@@ -3,14 +3,10 @@ package xyz.mufanc.nojump.service
 import android.app.IProcessObserver
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.IBinder
-import android.os.Looper
-import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.os.ServiceManager
+import android.util.ArrayMap
 import android.util.Log
-import androidx.core.os.postDelayed
-import org.joor.Reflect
 import rikka.hidden.compat.ActivityManagerApis
 import rikka.hidden.compat.PackageManagerApis
 import xyz.mufanc.nojump.App
@@ -21,35 +17,22 @@ class DaemonService : IDaemonService.Stub() {
 
     companion object {
         private const val TAG = "${App.TAG} (daemon)"
-        private const val PER_USER_RANGE = 100000
+
+        private const val SENSOR_SERVICE = "sensorservice"
+        private const val SENSOR_BLOCK_DURATION = 7500L
     }
 
-    private val controller = SensorController()
+    private val mSensorService = ServiceManager.getService(SENSOR_SERVICE)
+    private val mWorkerThread = HandlerThread("timer").apply { start() }
+    private val mHandler = Handler(mWorkerThread.looper)
 
-//    class ActivityMonitor : IActivityController.Stub() {
-//        override fun activityStarting(intent: Intent?, pkg: String?): Boolean {
-//            Log.i(TAG, "[${Binder.getCallingUid()} - ${Binder.getCallingPid()}] $pkg $intent")
-//            return true
-//        }
-//
-//        override fun activityResuming(pkg: String?): Boolean = true
-//        override fun appCrashed(processName: String?, pid: Int, shortMsg: String?, longMsg: String?, timeMillis: Long, stackTrace: String?): Boolean = true
-//        override fun appEarlyNotResponding(processName: String?, pid: Int, annotation: String?): Int = 0
-//        override fun appNotResponding(processName: String?, pid: Int, processStats: String?): Int = 0
-//        override fun systemNotResponding(msg: String?): Int = -1
-//    }
+    private val mBlockedTime = ArrayMap<ActivityInfo, Long>()
 
-    private val observer = object : IProcessObserver.Stub() {
+    private val mProcessObserver = object : IProcessObserver.Stub() {
 
         override fun onForegroundActivitiesChanged(pid: Int, uid: Int, foreground: Boolean) {
-            if (!foreground) return
             if (uid < Process.FIRST_APPLICATION_UID) return
-
-            val packages = PackageManagerApis.getPackagesForUid(uid) ?: return
-            Log.i(TAG, "Foreground changed: pid=$pid uid=$uid packages=${packages.contentToString()}")
-
-            if (packages.isEmpty()) return
-            controller.handleForegroundActivity(packages.first(), uid / PER_USER_RANGE)
+            updateUidState(ActivityInfo.fromUid(uid) ?: return, allow = false)
         }
 
         override fun onProcessDied(pid: Int, uid: Int) = Unit
@@ -57,9 +40,34 @@ class DaemonService : IDaemonService.Stub() {
         override fun onForegroundServicesChanged(pid: Int, uid: Int, serviceTypes: Int) = Unit
     }
 
+    @Synchronized
+    private fun updateUidState(info: ActivityInfo, allow: Boolean) {
+        val currentTime = System.currentTimeMillis()
+        val command = ShellCommand(mSensorService)
+
+        if (allow) {
+            val blockedTime = mBlockedTime[info]
+
+            if (blockedTime == null || currentTime - blockedTime >= SENSOR_BLOCK_DURATION) {
+                command.exec("reset-uid-state", info.pkg, "--user", "${info.user}")
+                mBlockedTime.remove(info)
+                Log.i(TAG, "unblock sensor for $info")
+            }
+        } else {
+            if (!mBlockedTime.contains(info)) {
+                command.exec("set-uid-state", info.pkg, "idle", "--user", "${info.user}")
+                Log.i(TAG, "block sensor for: $info")
+            }
+
+            mBlockedTime[info] = currentTime
+            mHandler.postDelayed(ResetUidRunnable(info), SENSOR_BLOCK_DURATION)
+        }
+    }
+
     override fun run() {
         try {
-            ActivityManagerApis.registerProcessObserver(observer)
+            ActivityManagerApis.registerProcessObserver(mProcessObserver)
+            Log.i(TAG, "service started")
         } catch (err: Throwable) {
             Log.e(TAG, "", err)
         }
@@ -67,5 +75,31 @@ class DaemonService : IDaemonService.Stub() {
 
     override fun destory() {
         exitProcess(0)
+    }
+
+    data class ActivityInfo(val pkg: String, val user: Int) {
+        companion object {
+
+            private const val PER_USER_RANGE = 100000
+
+            fun fromUid(uid: Int): ActivityInfo? {
+                val pkg = PackageManagerApis.getPackagesForUid(uid)?.firstOrNull() ?: return null
+                val user = uid / PER_USER_RANGE
+
+                return ActivityInfo(pkg, user)
+            }
+        }
+
+        override fun toString(): String {
+            return "ActivityInfo { pkg = $pkg, user = $user }"
+        }
+    }
+
+    inner class ResetUidRunnable(
+        private val info: ActivityInfo
+    ) : Runnable {
+        override fun run() {
+            updateUidState(info, allow = true)
+        }
     }
 }
